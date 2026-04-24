@@ -1,75 +1,200 @@
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:typed_data';
+
 import '../models/canvas_element.dart';
+import '../models/canvas_snapshot.dart';
 
 class CanvasController extends GetxController {
-  var elements = <CanvasElement>[].obs;
-  var backgroundColor = Colors.white.obs;
-  var canvasSize = const Size(1080, 1920).obs;
+  final RxList<CanvasElement> elements = <CanvasElement>[].obs;
+  final Rx<Color> backgroundColor = Colors.white.obs;
+  final Rx<Size> canvasSize = const Size(1080, 1920).obs;
+  final RxnString selectedElementId = RxnString();
 
-  final _undoStack = <List<CanvasElement>>[].obs;
-  final _redoStack = <List<CanvasElement>>[].obs;
+  final List<CanvasSnapshot> _undoStack = <CanvasSnapshot>[];
+  final List<CanvasSnapshot> _redoStack = <CanvasSnapshot>[];
+  final Uuid _uuid = const Uuid();
 
-  void addElement(CanvasElement element) {
-    _saveState();
+  static const int _maxHistory = 50;
+  bool _isElementInteractionActive = false;
+
+  bool get canUndo => _undoStack.isNotEmpty;
+  bool get canRedo => _redoStack.isNotEmpty;
+
+  CanvasElement? get selectedElement {
+    final id = selectedElementId.value;
+    if (id == null) return null;
+    for (final e in elements) {
+      if (e.id == id) return e;
+    }
+    return null;
+  }
+
+  void addImageElement(Uint8List imageData) {
+    _pushUndoSnapshot();
+    final element = CanvasElement(
+      id: _uuid.v4(),
+      type: ElementType.image,
+      position: _defaultInsertOffset(),
+      imageData: imageData,
+      scale: 1,
+    );
     elements.add(element);
+    selectElement(element.id);
+    update();
+  }
+
+  void addTextElement({
+    required String content,
+    Color textColor = Colors.black,
+    double fontSize = 28,
+  }) {
+    _pushUndoSnapshot();
+    final element = CanvasElement(
+      id: _uuid.v4(),
+      type: ElementType.text,
+      position: _defaultInsertOffset(),
+      content: content,
+      textColor: textColor,
+      fontSize: fontSize,
+      textAlign: TextAlign.left,
+      fontWeight: FontWeight.w500,
+      scale: 1,
+    );
+    elements.add(element);
+    selectElement(element.id);
+    update();
   }
 
   void selectElement(String? id) {
-    for (int i = 0; i < elements.length; i++) {
+    selectedElementId.value = id;
+    for (var i = 0; i < elements.length; i++) {
       final el = elements[i];
-      if (el.id == id) {
-        if (!el.isSelected) {
-          elements[i] = el.copyWith(isSelected: true);
-        }
-      } else {
-        if (el.isSelected) {
-          elements[i] = el.copyWith(isSelected: false);
-        }
+      final shouldSelect = el.id == id;
+      if (el.isSelected != shouldSelect) {
+        elements[i] = el.copyWith(isSelected: shouldSelect);
       }
     }
     elements.refresh();
+    update();
   }
 
-  void updateElement(String id, CanvasElement newElement) {
-    final index = elements.indexWhere((e) => e.id == id);
-    if (index != -1) {
-      elements[index] = newElement;
-      elements.refresh();
-    }
-  }
-
-  void finishUpdate() {
-    _saveState();
-  }
-
-  void removeElement(String id) {
-    _saveState();
+  void removeSelectedElement() {
+    final id = selectedElementId.value;
+    if (id == null) return;
+    _pushUndoSnapshot();
     elements.removeWhere((e) => e.id == id);
+    selectedElementId.value = null;
+    elements.refresh();
+    update();
+  }
+
+  void updateElementTransform(
+    String id, {
+    Offset? position,
+    double? scale,
+  }) {
+    final index = elements.indexWhere((e) => e.id == id);
+    if (index < 0) return;
+
+    final oldElement = elements[index];
+    elements[index] = oldElement.copyWith(
+      position: position ?? oldElement.position,
+      scale: scale ?? oldElement.scale,
+    );
+    elements.refresh();
+    update();
+  }
+
+  void updateTextElement(
+    String id, {
+    String? content,
+    Color? textColor,
+    double? fontSize,
+  }) {
+    final index =
+        elements.indexWhere((e) => e.id == id && e.type == ElementType.text);
+    if (index < 0) return;
+
+    _pushUndoSnapshot();
+    final oldElement = elements[index];
+    elements[index] = oldElement.copyWith(
+      content: content ?? oldElement.content,
+      textColor: textColor ?? oldElement.textColor,
+      fontSize: fontSize ?? oldElement.fontSize,
+    );
+    elements.refresh();
+    update();
+  }
+
+  void startElementInteraction() {
+    if (_isElementInteractionActive) return;
+    _isElementInteractionActive = true;
+    _pushUndoSnapshot();
+  }
+
+  void endElementInteraction() {
+    _isElementInteractionActive = false;
   }
 
   void setBackgroundColor(Color color) {
+    if (backgroundColor.value == color) return;
+    _pushUndoSnapshot();
     backgroundColor.value = color;
+    update();
+  }
+
+  void setCanvasSize(Size size) {
+    if (canvasSize.value == size) return;
+    _pushUndoSnapshot();
+    canvasSize.value = size;
+    update();
   }
 
   void undo() {
     if (_undoStack.isEmpty) return;
-    _redoStack.add(List.from(elements));
-    elements.value = _undoStack.removeLast();
+    _redoStack.add(_createSnapshot());
+    final snapshot = _undoStack.removeLast();
+    _restoreSnapshot(snapshot);
+    update();
   }
 
   void redo() {
     if (_redoStack.isEmpty) return;
-    _saveState(); // Save current state to undo before redoing
-    elements.value = _redoStack.removeLast();
+    _undoStack.add(_createSnapshot());
+    final snapshot = _redoStack.removeLast();
+    _restoreSnapshot(snapshot);
+    update();
   }
 
-  void _saveState() {
-    _undoStack.add(List.from(elements));
-    _redoStack.clear(); // Clear redo stack on new action
-    if (_undoStack.length > 20) { // Limit history size
+  Offset _defaultInsertOffset() {
+    final size = canvasSize.value;
+    return Offset(size.width * 0.35, size.height * 0.35);
+  }
+
+  void _pushUndoSnapshot() {
+    _undoStack.add(_createSnapshot());
+    _redoStack.clear();
+    if (_undoStack.length > _maxHistory) {
       _undoStack.removeAt(0);
     }
+  }
+
+  CanvasSnapshot _createSnapshot() {
+    return CanvasSnapshot.fromState(
+      elements: elements,
+      backgroundColor: backgroundColor.value,
+      canvasSize: canvasSize.value,
+      selectedElementId: selectedElementId.value,
+    );
+  }
+
+  void _restoreSnapshot(CanvasSnapshot snapshot) {
+    elements.value = List<CanvasElement>.from(snapshot.elements);
+    backgroundColor.value = snapshot.backgroundColor;
+    canvasSize.value = snapshot.canvasSize;
+    selectedElementId.value = snapshot.selectedElementId;
+    selectElement(snapshot.selectedElementId);
   }
 }

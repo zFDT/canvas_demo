@@ -1,15 +1,16 @@
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 enum ElementType { image, text }
 
 class CanvasElement {
   final String id;
   final ElementType type;
-  Offset position;
-  double scale;
-  double rotation;
+  final Offset position;
+  final double scale;
+  final double rotation;
 
   // For Image
   final Uint8List? imageData;
@@ -18,7 +19,10 @@ class CanvasElement {
   final String? content;
   final Color? textColor;
   final double? fontSize;
-  bool isSelected;
+  final bool isSelected;
+  final FontWeight? fontWeight;
+  final FontStyle? fontStyle;
+  final TextAlign? textAlign;
 
   CanvasElement({
     required this.id,
@@ -31,6 +35,9 @@ class CanvasElement {
     this.textColor,
     this.fontSize,
     this.isSelected = false,
+    this.fontWeight,
+    this.fontStyle,
+    this.textAlign,
   });
 
   CanvasElement copyWith({
@@ -44,6 +51,9 @@ class CanvasElement {
     Color? textColor,
     double? fontSize,
     bool? isSelected,
+    FontWeight? fontWeight,
+    FontStyle? fontStyle,
+    TextAlign? textAlign,
   }) {
     return CanvasElement(
       id: id ?? this.id,
@@ -56,6 +66,9 @@ class CanvasElement {
       textColor: textColor ?? this.textColor,
       fontSize: fontSize ?? this.fontSize,
       isSelected: isSelected ?? this.isSelected,
+      fontWeight: fontWeight ?? this.fontWeight,
+      fontStyle: fontStyle ?? this.fontStyle,
+      textAlign: textAlign ?? this.textAlign,
     );
   }
 }

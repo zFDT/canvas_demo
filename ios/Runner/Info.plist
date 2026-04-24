@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册以选择图片进行画布合成。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>需要将合成后的 PNG 保存到你的相册。</string>
 </dict>
 </plist>
