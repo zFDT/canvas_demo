@@ -165,6 +165,15 @@ class _CanvasViewState extends State<CanvasView> {
                   onPressed: controller.canRedo ? controller.redo : null,
                   tooltip: '下一步',
                 ),
+                Obx(
+                  () => IconButton(
+                    icon: const Icon(Icons.delete_sweep_outlined, size: 20),
+                    onPressed: controller.elements.isNotEmpty
+                        ? _confirmClearCanvas
+                        : null,
+                    tooltip: '清空画布',
+                  ),
+                ),
               ],
             ),
           ),
@@ -646,6 +655,33 @@ class _CanvasViewState extends State<CanvasView> {
       Get.snackbar('已导出到应用目录', filePath, duration: const Duration(seconds: 3));
     } else {
       Get.snackbar('导出失败', '保存图片失败，请检查权限');
+    }
+  }
+
+  Future<void> _confirmClearCanvas() async {
+    final shouldClear = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('清空画布'),
+          content: const Text('确定要清空当前画布中的所有元素吗？此操作可以撤销。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('清空'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldClear == true) {
+      controller.clearCanvas();
+      Get.snackbar('已清空画布', '当前画布中的元素已清空');
     }
   }
 }

@@ -91,6 +91,15 @@ class CanvasController extends GetxController {
     update();
   }
 
+  void clearCanvas() {
+    if (elements.isEmpty) return;
+    _pushUndoSnapshot();
+    elements.clear();
+    selectedElementId.value = null;
+    elements.refresh();
+    update();
+  }
+
   void updateElementTransform(
     String id, {
     Offset? position,

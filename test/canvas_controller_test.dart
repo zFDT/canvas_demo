@@ -55,4 +55,27 @@ void main() {
     controller.undo();
     expect(controller.backgroundColor.value, Colors.white);
   });
+
+  test('clear canvas is undoable and keeps canvas settings', () {
+    final controller = CanvasController();
+
+    controller.setBackgroundColor(Colors.black);
+    controller.setCanvasSize(const Size(900, 600));
+    controller.addTextElement(content: 'A');
+    controller.addImageElement(Uint8List.fromList([1, 2, 3]));
+
+    expect(controller.elements.length, 2);
+
+    controller.clearCanvas();
+
+    expect(controller.elements, isEmpty);
+    expect(controller.backgroundColor.value, Colors.black);
+    expect(controller.canvasSize.value, const Size(900, 600));
+
+    controller.undo();
+
+    expect(controller.elements.length, 2);
+    expect(controller.backgroundColor.value, Colors.black);
+    expect(controller.canvasSize.value, const Size(900, 600));
+  });
 }
