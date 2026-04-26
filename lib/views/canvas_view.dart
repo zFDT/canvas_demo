@@ -29,6 +29,8 @@ class _CanvasViewState extends State<CanvasView> {
   late Offset _gestureStartPosition;
   late Offset _gestureStartFocalPoint;
 
+  static const Offset _preferredInsertPosition = Offset(36, 96);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,23 +45,32 @@ class _CanvasViewState extends State<CanvasView> {
                 child: Container(
                   width: double.infinity,
                   color: _pageBg,
-                  alignment: Alignment.topCenter,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-                    child: Obx(
-                      () => RepaintBoundary(
-                        key: _repaintBoundaryKey,
-                        child: Container(
-                          width: controller.canvasSize.value.width,
-                          height: controller.canvasSize.value.height,
-                          color: controller.backgroundColor.value,
-                          child: Stack(
-                            children:
-                                controller.elements.map(_buildElement).toList(),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+                  child: Obx(
+                    () {
+                      final size = controller.canvasSize.value;
+                      return ClipRect(
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          child: RepaintBoundary(
+                            key: _repaintBoundaryKey,
+                            child: SizedBox(
+                              width: size.width,
+                              height: size.height,
+                              child: ColoredBox(
+                                color: controller.backgroundColor.value,
+                                child: Stack(
+                                  children: controller.elements
+                                      .map(_buildElement)
+                                      .toList(),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -304,7 +315,8 @@ class _CanvasViewState extends State<CanvasView> {
     if (file == null) return;
 
     final Uint8List bytes = await file.readAsBytes();
-    controller.addImageElement(bytes);
+    controller.addImageElement(bytes, position: _preferredInsertPosition);
+    Get.snackbar('已导入图片', '图片已添加到画布左上区域，可拖拽/缩放');
   }
 
   Future<void> _showAddTextDialog() async {
@@ -332,7 +344,11 @@ class _CanvasViewState extends State<CanvasView> {
     );
 
     if (created == true && textController.text.trim().isNotEmpty) {
-      controller.addTextElement(content: textController.text.trim());
+      controller.addTextElement(
+        content: textController.text.trim(),
+        position: _preferredInsertPosition,
+      );
+      Get.snackbar('已导入文字', '文字已添加到画布左上区域，可拖拽/缩放');
     }
   }
 

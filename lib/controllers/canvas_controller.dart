@@ -9,7 +9,7 @@ import '../models/canvas_snapshot.dart';
 class CanvasController extends GetxController {
   final RxList<CanvasElement> elements = <CanvasElement>[].obs;
   final Rx<Color> backgroundColor = Colors.white.obs;
-  final Rx<Size> canvasSize = const Size(1080, 1920).obs;
+  final Rx<Size> canvasSize = const Size(375, 812).obs;
   final RxnString selectedElementId = RxnString();
 
   final List<CanvasSnapshot> _undoStack = <CanvasSnapshot>[];
@@ -31,12 +31,12 @@ class CanvasController extends GetxController {
     return null;
   }
 
-  void addImageElement(Uint8List imageData) {
+  void addImageElement(Uint8List imageData, {Offset? position}) {
     _pushUndoSnapshot();
     final element = CanvasElement(
       id: _uuid.v4(),
       type: ElementType.image,
-      position: _defaultInsertOffset(),
+      position: position ?? _defaultInsertOffset(),
       imageData: imageData,
       scale: 1,
     );
@@ -49,12 +49,13 @@ class CanvasController extends GetxController {
     required String content,
     Color textColor = Colors.black,
     double fontSize = 28,
+    Offset? position,
   }) {
     _pushUndoSnapshot();
     final element = CanvasElement(
       id: _uuid.v4(),
       type: ElementType.text,
-      position: _defaultInsertOffset(),
+      position: position ?? _defaultInsertOffset(),
       content: content,
       textColor: textColor,
       fontSize: fontSize,
@@ -170,7 +171,7 @@ class CanvasController extends GetxController {
 
   Offset _defaultInsertOffset() {
     final size = canvasSize.value;
-    return Offset(size.width * 0.35, size.height * 0.35);
+    return Offset(size.width * 0.18, size.height * 0.22);
   }
 
   void _pushUndoSnapshot() {

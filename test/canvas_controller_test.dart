@@ -50,7 +50,7 @@ void main() {
     expect(controller.canvasSize.value, const Size(720, 1280));
 
     controller.undo();
-    expect(controller.canvasSize.value, const Size(1080, 1920));
+    expect(controller.canvasSize.value, const Size(375, 812));
 
     controller.undo();
     expect(controller.backgroundColor.value, Colors.white);
