@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -24,10 +25,6 @@ class _CanvasViewState extends State<CanvasView> {
   static const Color _primaryBlue = Color(0xFF00AEFF);
   static const Color _panelGray = Color(0xFFE7E8E8);
   static const Color _textDark = Color(0xFF393A3A);
-
-  double _gestureStartScale = 1;
-  late Offset _gestureStartPosition;
-  late Offset _gestureStartFocalPoint;
 
   static const Offset _preferredInsertPosition = Offset(36, 96);
 
@@ -79,14 +76,7 @@ class _CanvasViewState extends State<CanvasView> {
               builder: (_) {
                 final selected = controller.selectedElement;
                 if (selected == null) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: FilledButton.tonalIcon(
-                    onPressed: controller.removeSelectedElement,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('删除选中元素'),
-                  ),
-                );
+                return _buildSelectedOperationPanel(selected);
               },
             ),
             _buildBottomTabBar(),
@@ -250,51 +240,163 @@ class _CanvasViewState extends State<CanvasView> {
       child: GestureDetector(
         onTap: () {
           controller.selectElement(element.id);
-          if (element.type == ElementType.text) {
-            _showEditTextDialog(element);
-          }
         },
-        onScaleStart: (details) {
+        onPanStart: (_) {
           controller.selectElement(element.id);
           controller.startElementInteraction();
-          _gestureStartScale = element.scale;
-          _gestureStartPosition = element.position;
-          _gestureStartFocalPoint = details.focalPoint;
         },
-        onScaleUpdate: (details) {
-          final newScale = (_gestureStartScale * details.scale).clamp(0.2, 6.0);
-          final delta = details.focalPoint - _gestureStartFocalPoint;
-          final newPos = _gestureStartPosition + delta;
+        onPanUpdate: (details) {
+          final newPos = element.position + details.delta;
           controller.updateElementTransform(
             element.id,
             position: newPos,
-            scale: newScale,
           );
         },
-        onScaleEnd: (_) => controller.endElementInteraction(),
+        onPanEnd: (_) => controller.endElementInteraction(),
         child: Container(
           decoration: element.isSelected
               ? BoxDecoration(
                   border: Border.all(color: Colors.blue, width: 2.0),
                 )
               : null,
-          child: Transform.scale(
-            scale: element.scale,
-            child: element.type == ElementType.image
-                ? _buildImageElement(element)
-                : Text(
-                    element.content ?? '',
-                    style: TextStyle(
-                      color: element.textColor ?? Colors.black,
-                      fontSize: element.fontSize ?? 28,
-                      fontWeight: element.fontWeight,
-                      fontStyle: element.fontStyle,
+          child: Transform.rotate(
+            angle: element.rotation,
+            child: Transform.scale(
+              scale: element.scale,
+              child: element.type == ElementType.image
+                  ? _buildImageElement(element)
+                  : Text(
+                      element.content ?? '',
+                      style: TextStyle(
+                        color: element.textColor ?? Colors.black,
+                        fontSize: element.fontSize ?? 28,
+                        fontWeight: element.fontWeight,
+                        fontStyle: element.fontStyle,
+                      ),
+                      textAlign: element.textAlign,
                     ),
-                    textAlign: element.textAlign,
-                  ),
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSelectedOperationPanel(CanvasElement selected) {
+    final rotationDeg = selected.rotation * 180 / math.pi;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE6E8EA)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                selected.type == ElementType.text
+                    ? Icons.text_fields
+                    : Icons.image_outlined,
+                size: 18,
+                color: _textDark,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                selected.type == ElementType.text ? '文字操作' : '图片操作',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _textDark,
+                ),
+              ),
+              const Spacer(),
+              if (selected.type == ElementType.text)
+                TextButton.icon(
+                  onPressed: () => _showEditTextDialog(selected),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('编辑'),
+                ),
+              IconButton(
+                tooltip: '删除',
+                onPressed: controller.removeSelectedElement,
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _buildSliderRow(
+            title: '缩放',
+            valueText: '${(selected.scale * 100).round()}%',
+            min: 0.2,
+            max: 4.0,
+            value: selected.scale.clamp(0.2, 4.0),
+            onChangeStart: (_) => controller.startElementInteraction(),
+            onChanged: (v) => controller.updateElementTransform(
+              selected.id,
+              scale: v,
+            ),
+            onChangeEnd: (_) => controller.endElementInteraction(),
+          ),
+          _buildSliderRow(
+            title: '旋转',
+            valueText: '${rotationDeg.round()}°',
+            min: -180,
+            max: 180,
+            value: rotationDeg.clamp(-180, 180).toDouble(),
+            onChangeStart: (_) => controller.startElementInteraction(),
+            onChanged: (v) => controller.updateElementTransform(
+              selected.id,
+              rotation: v * math.pi / 180,
+            ),
+            onChangeEnd: (_) => controller.endElementInteraction(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliderRow({
+    required String title,
+    required String valueText,
+    required double min,
+    required double max,
+    required double value,
+    required ValueChanged<double> onChanged,
+    required ValueChanged<double> onChangeStart,
+    required ValueChanged<double> onChangeEnd,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 38,
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 12, color: _textDark),
+          ),
+        ),
+        Expanded(
+          child: Slider(
+            min: min,
+            max: max,
+            value: value,
+            onChanged: onChanged,
+            onChangeStart: onChangeStart,
+            onChangeEnd: onChangeEnd,
+          ),
+        ),
+        SizedBox(
+          width: 46,
+          child: Text(
+            valueText,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 12, color: _textDark),
+          ),
+        ),
+      ],
     );
   }
 
@@ -316,7 +418,7 @@ class _CanvasViewState extends State<CanvasView> {
 
     final Uint8List bytes = await file.readAsBytes();
     controller.addImageElement(bytes, position: _preferredInsertPosition);
-    Get.snackbar('已导入图片', '图片已添加到画布左上区域，可拖拽/缩放');
+    Get.snackbar('已导入图片', '图片已添加到画布左上区域，可拖拽移动');
   }
 
   Future<void> _showAddTextDialog() async {
@@ -348,7 +450,7 @@ class _CanvasViewState extends State<CanvasView> {
         content: textController.text.trim(),
         position: _preferredInsertPosition,
       );
-      Get.snackbar('已导入文字', '文字已添加到画布左上区域，可拖拽/缩放');
+      Get.snackbar('已导入文字', '文字已添加到画布左上区域，可拖拽移动');
     }
   }
 

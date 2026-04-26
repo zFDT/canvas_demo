@@ -95,6 +95,7 @@ class CanvasController extends GetxController {
     String id, {
     Offset? position,
     double? scale,
+    double? rotation,
   }) {
     final index = elements.indexWhere((e) => e.id == id);
     if (index < 0) return;
@@ -103,6 +104,7 @@ class CanvasController extends GetxController {
     elements[index] = oldElement.copyWith(
       position: position ?? oldElement.position,
       scale: scale ?? oldElement.scale,
+      rotation: rotation ?? oldElement.rotation,
     );
     elements.refresh();
     update();
